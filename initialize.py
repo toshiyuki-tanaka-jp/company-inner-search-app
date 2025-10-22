@@ -242,3 +242,53 @@ def adjust_string(s):
     
     # OSがWindows以外の場合はそのまま返す
     return s
+
+
+def initialize_vectorstore():
+    """
+    ベクターストアの初期化（簡潔版）
+    
+    Returns:
+        初期化されたベクターストア
+    """
+    import streamlit as st
+    from langchain_openai import OpenAIEmbeddings
+    from langchain_community.vectorstores import Chroma
+    from langchain.text_splitter import CharacterTextSplitter
+    
+    # セッションステートにベクターストアがある場合はそれを返す
+    if "vectorstore" in st.session_state:
+        return st.session_state.vectorstore
+    
+    try:
+        # データソースの読み込み
+        docs_all = load_data_sources()
+        
+        # Windows環境での文字調整
+        for doc in docs_all:
+            doc.page_content = adjust_string(doc.page_content)
+            for key in doc.metadata:
+                doc.metadata[key] = adjust_string(doc.metadata[key])
+        
+        # 埋め込みモデルの用意
+        embeddings = OpenAIEmbeddings()
+        
+        # チャンク分割
+        text_splitter = CharacterTextSplitter(
+            chunk_size=ct.CHUNK_SIZE,
+            chunk_overlap=ct.CHUNK_OVERLAP,
+            separator="\n"
+        )
+        splitted_docs = text_splitter.split_documents(docs_all)
+        
+        # ベクターストアの作成
+        vectorstore = Chroma.from_documents(splitted_docs, embedding=embeddings)
+        
+        # セッションステートに保存
+        st.session_state.vectorstore = vectorstore
+        
+        return vectorstore
+        
+    except Exception as e:
+        st.error(f"ベクターストアの初期化中にエラーが発生しました: {str(e)}")
+        return None

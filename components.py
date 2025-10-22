@@ -325,3 +325,46 @@ def display_contact_llm_response(llm_response):
         content["file_info_list"] = file_info_list
 
     return content
+
+
+def chat_component(user_input, relevant_docs):
+    """
+    チャット処理のメイン関数
+    
+    Args:
+        user_input: ユーザー入力
+        relevant_docs: 関連ドキュメント
+        
+    Returns:
+        チャット応答
+    """
+    try:
+        # LLMからの回答取得
+        llm_response = utils.get_llm_response(user_input, relevant_docs)
+        
+        # モードに応じた応答処理
+        if st.session_state.get("mode", ct.ANSWER_MODE_1) == ct.ANSWER_MODE_1:
+            # 社内文書検索モード
+            if llm_response.get("answer") == "":
+                # 関連文書が見つかった場合
+                file_info_list = []
+                for doc in relevant_docs:
+                    file_info = {
+                        "file_name": doc.metadata.get("source", "不明"),
+                        "page_content": doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content
+                    }
+                    file_info_list.append(file_info)
+                
+                response = "関連する社内文書が見つかりました。\n\n"
+                for i, info in enumerate(file_info_list, 1):
+                    response += f"**{i}. {info['file_name']}**\n{info['page_content']}\n\n"
+                
+                return response
+            else:
+                return ct.NO_DOC_MATCH_MESSAGE
+        else:
+            # 社内問い合わせモード
+            return llm_response.get("answer", "回答を生成できませんでした。")
+            
+    except Exception as e:
+        return f"エラーが発生しました: {str(e)}"

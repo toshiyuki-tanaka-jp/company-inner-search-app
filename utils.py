@@ -114,3 +114,63 @@ def get_llm_response(chat_message):
     st.session_state.chat_history.extend([HumanMessage(content=chat_message), llm_response["answer"]])
 
     return llm_response
+
+
+def get_relevant_docs(vectorstore, query, top_k=ct.RETRIEVAL_TOP_K):
+    """
+    ベクターストアから関連ドキュメントを取得
+    
+    Args:
+        vectorstore: ベクターストア
+        query: 検索クエリ
+        top_k: 取得する文書数
+        
+    Returns:
+        関連ドキュメントのリスト
+    """
+    try:
+        retriever = vectorstore.as_retriever(search_kwargs={"k": top_k})
+        relevant_docs = retriever.get_relevant_documents(query)
+        return relevant_docs
+    except Exception as e:
+        st.error(f"文書検索中にエラーが発生しました: {str(e)}")
+        return []
+
+
+def get_llm_response_simple(user_input, relevant_docs):
+    """
+    シンプルなLLM応答取得関数
+    
+    Args:
+        user_input: ユーザー入力
+        relevant_docs: 関連ドキュメント
+        
+    Returns:
+        LLM応答
+    """
+    from langchain_openai import ChatOpenAI
+    from langchain.prompts import ChatPromptTemplate
+    
+    # LLMのオブジェクトを用意
+    llm = ChatOpenAI(model_name=ct.MODEL, temperature=ct.TEMPERATURE)
+    
+    # 文脈を作成
+    context = "\n".join([doc.page_content for doc in relevant_docs])
+    
+    # モードに応じたプロンプトを選択
+    mode = st.session_state.get("mode", ct.ANSWER_MODE_1)
+    if mode == ct.ANSWER_MODE_1:
+        template = ct.SYSTEM_PROMPT_DOC_SEARCH
+    else:
+        template = ct.SYSTEM_PROMPT_INQUIRY
+    
+    # プロンプトテンプレートを作成
+    prompt = ChatPromptTemplate.from_template(
+        template + "\n\n入力: {input}"
+    )
+    
+    # チェーンを作成して実行
+    chain = prompt | llm
+    response = chain.invoke({"input": user_input, "context": context})
+    
+    return {"answer": response.content}
