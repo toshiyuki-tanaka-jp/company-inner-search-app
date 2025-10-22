@@ -5,6 +5,7 @@
 ############################################################
 # ライブラリの読み込み
 ############################################################
+import os
 from langchain_community.document_loaders import PyMuPDFLoader, Docx2txtLoader, TextLoader
 from langchain_community.document_loaders.csv_loader import CSVLoader
 
@@ -12,6 +13,17 @@ from langchain_community.document_loaders.csv_loader import CSVLoader
 ############################################################
 # 共通変数の定義
 ############################################################
+
+# ==========================================
+# RAG設定系
+# ==========================================
+# RAG: 取得する関連ドキュメント数（問題1で変更した値）
+RETRIEVAL_TOP_K: int = int(os.getenv("RETRIEVAL_TOP_K", "5"))
+
+# チャンク分割パラメータ
+CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "500"))        # ←今使っている値に合わせて初期値を置く
+CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "50"))   # ←今使っている値に合わせて初期値を置く
+
 
 # ==========================================
 # 画面表示系
