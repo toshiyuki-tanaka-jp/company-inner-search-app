@@ -74,6 +74,7 @@ pydantic==1.10.19
 pydeck==0.9.1
 Pygments==2.18.0
 PyMuPDF==1.25.0
+pypdf
 python-dateutil==2.9.0.post0
 python-docx==1.1.2
 python-dotenv==1.0.1
