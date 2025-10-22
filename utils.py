@@ -6,10 +6,11 @@
 # ライブラリの読み込み
 ############################################################
 import os
+from typing import List
 from dotenv import load_dotenv
 import streamlit as st
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.schema import HumanMessage
+from langchain.schema import HumanMessage, Document
 from langchain_openai import ChatOpenAI
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
@@ -59,15 +60,49 @@ def build_error_message(message):
     return "\n".join([message, ct.COMMON_ERROR_MESSAGE])
 
 
-def get_llm_response(chat_message):
+def get_llm_response(prompt: str, docs: List[Document], *, mode: str = "search") -> str:
     """
-    LLMからの回答取得
+    prompt: ユーザー質問
+    docs  : RAGで取得した関連ドキュメント（Documentのリスト）
+    mode  : 画面のモード（必要ならプロンプト分岐に使用）
+    """
+    # ドキュメントをプロンプトに埋め込むために整形
+    def _fmt(d: Document) -> str:
+        src = d.metadata.get("source", "unknown")
+        page = d.metadata.get("page")
+        page_str = f" (page {page+1})" if isinstance(page, int) else ""
+        return f"Source: {src}{page_str}\nContent:\n{d.page_content}"
+
+    context = "\n\n---\n\n".join(_fmt(d) for d in docs)
+
+    system_msg = (
+        "You are a helpful assistant that answers using ONLY the provided context. "
+        "If the answer is not contained, say you don't know."
+    )
+    user_msg = f"Question:\n{prompt}\n\nContext:\n{context}"
+
+    # ↓ ここは使っているLLMクライアントに合わせて
+    # 例：OpenAI responses API なら
+    from openai import OpenAI
+    client = OpenAI()
+    completion = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role":"system","content":system_msg},
+                  {"role":"user","content":user_msg}],
+        temperature=0.2,
+    )
+    return completion.choices[0].message.content.strip()
+
+
+def get_llm_response_legacy(chat_message):
+    """
+    LLMからの回答取得（レガシー版・会話履歴対応）
 
     Args:
         chat_message: ユーザー入力値
 
     Returns:
-        LLMからの回答
+        LLMからの回答（辞書形式）
     """
     # LLMのオブジェクトを用意
     llm = ChatOpenAI(model_name=ct.MODEL, temperature=ct.TEMPERATURE)

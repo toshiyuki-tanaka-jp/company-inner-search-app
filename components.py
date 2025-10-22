@@ -351,12 +351,14 @@ def chat_component(user_input, relevant_docs):
     """
     try:
         # LLMからの回答取得
-        llm_response = utils.get_llm_response(user_input, relevant_docs)
+        current_mode = st.session_state.get("mode", ct.ANSWER_MODE_1)
+        mode_str = "search" if current_mode == ct.ANSWER_MODE_1 else "inquiry"
+        llm_response = utils.get_llm_response(user_input, relevant_docs, mode=mode_str)
         
         # モードに応じた応答処理
-        if st.session_state.get("mode", ct.ANSWER_MODE_1) == ct.ANSWER_MODE_1:
+        if current_mode == ct.ANSWER_MODE_1:
             # 社内文書検索モード
-            if llm_response.get("answer") == "":
+            if not llm_response or llm_response.strip() == "":
                 # 関連文書が見つかった場合
                 file_info_list = []
                 for doc in relevant_docs:
@@ -381,10 +383,10 @@ def chat_component(user_input, relevant_docs):
                 
                 return response
             else:
-                return ct.NO_DOC_MATCH_MESSAGE
+                return llm_response
         else:
             # 社内問い合わせモード
-            return llm_response.get("answer", "回答を生成できませんでした。")
+            return llm_response
             
     except Exception as e:
         return f"エラーが発生しました: {str(e)}"
