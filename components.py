@@ -159,8 +159,11 @@ def display_search_llm_response(llm_response):
         if "page" in llm_response["context"][0].metadata:
             # ページ番号を取得
             main_page_number = llm_response["context"][0].metadata["page"]
-            # 「メインドキュメントのファイルパス」と「ページ番号」を表示
-            st.success(f"{main_file_path}", icon=icon)
+            # PDFファイルのみページ番号を表示
+            if main_file_path.endswith(".pdf") and main_page_number is not None:
+                st.success(f"{main_file_path} （ページNo.{main_page_number + 1}）", icon=icon)
+            else:
+                st.success(f"{main_file_path}", icon=icon)
         else:
             # 「メインドキュメントのファイルパス」を表示
             st.success(f"{main_file_path}", icon=icon)
@@ -214,12 +217,17 @@ def display_search_llm_response(llm_response):
                 # 参照元のありかに応じて、適したアイコンを取得
                 icon = utils.get_source_icon(sub_choice['source'])
                 # ページ番号が取得できない場合のための分岐処理
+                source = sub_choice['source']
                 if "page_number" in sub_choice:
-                    # 「サブドキュメントのファイルパス」と「ページ番号」を表示
-                    st.info(f"{sub_choice['source']}", icon=icon)
+                    page = sub_choice['page_number']
+                    # PDFファイルのみページ番号を表示
+                    if source.endswith(".pdf") and page is not None:
+                        st.info(f"{source} （ページNo.{page + 1}）", icon=icon)
+                    else:
+                        st.info(f"{source}", icon=icon)
                 else:
                     # 「サブドキュメントのファイルパス」を表示
-                    st.info(f"{sub_choice['source']}", icon=icon)
+                    st.info(f"{source}", icon=icon)
         
         # 表示用の会話ログに格納するためのデータを用意
         # - 「mode」: モード（「社内文書検索」or「社内問い合わせ」）
@@ -295,8 +303,11 @@ def display_contact_llm_response(llm_response):
             if "page" in document.metadata:
                 # ページ番号を取得
                 page_number = document.metadata["page"]
-                # 「ファイルパス」と「ページ番号」
-                file_info = f"{file_path}"
+                # PDFファイルのみページ番号を表示
+                if file_path.endswith(".pdf") and page_number is not None:
+                    file_info = f"{file_path} （ページNo.{page_number + 1}）"
+                else:
+                    file_info = f"{file_path}"
             else:
                 # 「ファイルパス」のみ
                 file_info = f"{file_path}"
@@ -349,8 +360,17 @@ def chat_component(user_input, relevant_docs):
                 # 関連文書が見つかった場合
                 file_info_list = []
                 for doc in relevant_docs:
+                    source = doc.metadata.get("source", "不明")
+                    page = doc.metadata.get("page", None)
+                    
+                    # PDFファイルのみページ番号を表示
+                    if source.endswith(".pdf") and page is not None:
+                        file_name = f"{source} （ページNo.{page + 1}）"
+                    else:
+                        file_name = source
+                    
                     file_info = {
-                        "file_name": doc.metadata.get("source", "不明"),
+                        "file_name": file_name,
                         "page_content": doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content
                     }
                     file_info_list.append(file_info)
