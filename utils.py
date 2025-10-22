@@ -64,14 +64,46 @@ def build_error_message(message):
     return "\n".join([message, ct.COMMON_ERROR_MESSAGE])
 
 
-def build_pdf_view_url(source_path: str, page: int | None) -> str:
-    """GitHub上のPDFをGoogle Docs Viewerで表示"""
+def build_pdf_view_url(source_path: str) -> str:
+    """GitHubのRaw URLをGoogle Docs Viewerで埋め込み/別タブ表示できるURLに変換"""
     owner  = st.secrets.get("GITHUB_OWNER")
     repo   = st.secrets.get("GITHUB_REPO")
     branch = st.secrets.get("GITHUB_BRANCH", "main")
     rel = source_path.lstrip("./")
     raw = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{rel}"
     return f"https://drive.google.com/viewer?embedded=1&url={urllib.parse.quote(raw, safe='')}"
+
+
+def render_evidence(docs, title="情報源"):
+    """関連ドキュメント（PDFはページ番号付き）を一覧表示"""
+    if not docs:
+        return
+    st.markdown(f"### {title}")
+    for i, d in enumerate(docs):
+        src = d.metadata.get("source", "unknown")
+        page = d.metadata.get("page")
+        page_str = f"（ページNo.{page+1}）" if isinstance(page, int) else ""
+        if src.lower().endswith(".pdf"):
+            url = build_pdf_view_url(src)
+            # 先頭候補は淡い緑、そのほかは淡い青のバッジ風
+            bg = "#e8f5e9" if i == 0 else "#e9f2ff"
+            st.markdown(
+                f"""
+                <div style="background:{bg};padding:12px 16px;border-radius:12px;margin:8px 0;">
+                  📄 <a href="{url}" target="_blank">{src}</a> {page_str}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                f"""
+                <div style="background:#e9f2ff;padding:12px 16px;border-radius:12px;margin:8px 0;">
+                  📄 {src}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 def get_llm_response(prompt: str, docs: list, mode: str = "search") -> str:

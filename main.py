@@ -2,7 +2,7 @@ import streamlit as st
 from components import chat_component
 from constants import RETRIEVAL_TOP_K
 from initialize import initialize_vectorstore
-from utils import get_relevant_docs
+from utils import get_relevant_docs, render_evidence, build_pdf_view_url, get_llm_response
 
 # ページ設定
 st.set_page_config(
@@ -58,14 +58,20 @@ for message in st.session_state.messages:
 user_input = st.chat_input("こちらからメッセージを送信してください。")
 
 if user_input:
-    # ユーザーメッセージを表示
     st.chat_message("user").write(user_input)
-    st.session_state.messages.append({"role": "user", "content": user_input})
 
     with st.spinner("社内文書を検索中..."):
-        relevant_docs = get_relevant_docs(vectorstore, user_input, top_k=RETRIEVAL_TOP_K)
-        response = chat_component(user_input, relevant_docs)
+        docs = get_relevant_docs(vectorstore, user_input, top_k=RETRIEVAL_TOP_K)
 
-    # AIメッセージを表示
-    st.chat_message("assistant").write(response)
-    st.session_state.messages.append({"role": "assistant", "content": response})
+    # ① まず根拠（PDF＋ページ番号）を表示：両モード共通
+    if purpose == "社内文書検索":
+        render_evidence(docs, title="入力内容に関する情報は、以下のファイルに含まれている可能性があります。")
+    else:  # 社内問い合わせ
+        render_evidence(docs, title="情報源")
+
+    # ② 文章回答：両モードとも返す（必要ならプロンプト分岐）
+    try:
+        answer = get_llm_response(user_input, docs, mode=("search" if purpose=="社内文書検索" else "inquiry"))
+        st.chat_message("assistant").write(answer)
+    except Exception as e:
+        st.error(f"エラーが発生しました: {e}")
