@@ -9,12 +9,16 @@ import os
 from typing import List
 from dotenv import load_dotenv
 import streamlit as st
+import urllib.parse
+from openai import OpenAI
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.schema import HumanMessage, Document
 from langchain_openai import ChatOpenAI
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 import constants as ct
+
+client = OpenAI()
 
 
 ############################################################
@@ -60,37 +64,35 @@ def build_error_message(message):
     return "\n".join([message, ct.COMMON_ERROR_MESSAGE])
 
 
-def get_llm_response(prompt: str, docs: List[Document], *, mode: str = "search") -> str:
-    """
-    prompt: ユーザー質問
-    docs  : RAGで取得した関連ドキュメント（Documentのリスト）
-    mode  : 画面のモード（必要ならプロンプト分岐に使用）
-    """
-    # ドキュメントをプロンプトに埋め込むために整形
-    def _fmt(d: Document) -> str:
-        src = d.metadata.get("source", "unknown")
-        page = d.metadata.get("page")
-        page_str = f" (page {page+1})" if isinstance(page, int) else ""
-        return f"Source: {src}{page_str}\nContent:\n{d.page_content}"
+def build_pdf_view_url(source_path: str, page: int | None) -> str:
+    """GitHub上のPDFをGoogle Docs Viewerで表示"""
+    owner  = st.secrets.get("GITHUB_OWNER")
+    repo   = st.secrets.get("GITHUB_REPO")
+    branch = st.secrets.get("GITHUB_BRANCH", "main")
+    rel = source_path.lstrip("./")
+    raw = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{rel}"
+    return f"https://drive.google.com/viewer?embedded=1&url={urllib.parse.quote(raw, safe='')}"
 
-    context = "\n\n---\n\n".join(_fmt(d) for d in docs)
 
-    system_msg = (
-        "You are a helpful assistant that answers using ONLY the provided context. "
-        "If the answer is not contained, say you don't know."
+def get_llm_response(prompt: str, docs: list, mode: str = "search") -> str:
+    """LLMに要約・回答を生成させる"""
+    context = "\n\n".join(
+        f"Source: {d.metadata.get('source')} (page {d.metadata.get('page', 'N/A')})\n{d.page_content}"
+        for d in docs
     )
-    user_msg = f"Question:\n{prompt}\n\nContext:\n{context}"
 
-    # ↓ ここは使っているLLMクライアントに合わせて
-    # 例：OpenAI responses API なら
-    from openai import OpenAI
-    client = OpenAI()
+    system_msg = "あなたは社内文書をもとに質問に答えるアシスタントです。"
+    user_msg = f"質問:\n{prompt}\n\n参考情報:\n{context}"
+
     completion = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[{"role":"system","content":system_msg},
-                  {"role":"user","content":user_msg}],
-        temperature=0.2,
+        messages=[
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_msg},
+        ],
+        temperature=0.3,
     )
+
     return completion.choices[0].message.content.strip()
 
 

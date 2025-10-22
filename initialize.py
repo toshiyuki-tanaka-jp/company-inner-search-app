@@ -214,10 +214,21 @@ def file_load(path, docs_all):
 
     # 想定していたファイル形式の場合のみ読み込む
     if file_extension in ct.SUPPORTED_EXTENSIONS:
-        # ファイルの拡張子に合ったdata loaderを使ってデータ読み込み
-        loader = ct.SUPPORTED_EXTENSIONS[file_extension](path)
-        docs = loader.load()
-        docs_all.extend(docs)
+        if file_extension == ".pdf":
+            # PDFファイルの場合は特別処理でページ情報を付与
+            from langchain.document_loaders import PyPDFLoader
+            loader = PyPDFLoader(path)
+            pages = loader.load_and_split()
+            
+            for i, doc in enumerate(pages):
+                doc.metadata["source"] = path
+                doc.metadata["page"] = i
+                docs_all.append(doc)
+        else:
+            # その他のファイル形式は通常通り処理
+            loader = ct.SUPPORTED_EXTENSIONS[file_extension](path)
+            docs = loader.load()
+            docs_all.extend(docs)
 
 
 def adjust_string(s):
